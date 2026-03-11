@@ -10,7 +10,7 @@ export default function GameRow({ game }: { game: NormalizedGame }) {
 
   return (
     <Link
-      href={isLive ? "/live" : `#game-${game.id}`}
+      href={isLive ? "/live" : game.status === "post" ? `/game/${game.id}` : `#`}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
         isLive
           ? "bg-blue-50 border border-blue-200 hover:bg-blue-100"

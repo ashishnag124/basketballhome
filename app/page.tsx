@@ -162,7 +162,11 @@ export default async function HomePage() {
           </div>
           <div className="space-y-2">
             {recentResults.map((g) => (
-              <div key={g.id} className="bg-white rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
+              <Link
+                key={g.id}
+                href={`/game/${g.id}`}
+                className="bg-white rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm hover:bg-gray-50 transition-colors"
+              >
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${g.isWin ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                   {g.isWin ? "W" : "L"}
                 </span>
@@ -170,7 +174,7 @@ export default async function HomePage() {
                   {g.isHome ? "vs. " : "@ "}{g.opponent}
                 </span>
                 <span className="text-sm font-bold text-gray-800">{g.dukeScore}–{g.opponentScore}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

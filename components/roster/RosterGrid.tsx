@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { NormalizedPlayer } from "@/types/espn";
 import PlayerCard from "./PlayerCard";
 
@@ -39,7 +40,9 @@ export default function RosterGrid({ players }: { players: NormalizedPlayer[] })
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {groups[pos].map((player) => (
-              <PlayerCard key={player.id} player={player} />
+              <Link key={player.id} href={`/player/${player.id}`}>
+                <PlayerCard player={player} />
+              </Link>
             ))}
           </div>
         </div>

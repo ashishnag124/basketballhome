@@ -241,6 +241,173 @@ function espnStr(v: any): string {
   return String(v);
 }
 
+export async function fetchGameBoxScore(gameId: string): Promise<{
+  gameId: string;
+  date: string;
+  status: string;
+  statusText: string;
+  dukeScore: string;
+  opponentScore: string;
+  opponent: string;
+  opponentLogo: string;
+  isHome: boolean;
+  venue: string;
+  teams: Array<{
+    teamName: string;
+    teamId: string;
+    teamLogo: string;
+    isDuke: boolean;
+    columns: string[];
+    players: Array<{
+      id: string;
+      name: string;
+      jersey: string;
+      photo: string;
+      position: string;
+      starter: boolean;
+      didNotPlay: boolean;
+      stats: string[];
+    }>;
+    totals: string[];
+  }>;
+} | null> {
+  try {
+    const data = await espnFetch<EspnGameSummaryResponse>(
+      `${BASE}/summary?event=${gameId}`,
+      `boxscore:${gameId}`,
+      60 * 1000
+    );
+
+    const comp = data.header?.competitions?.[0];
+    if (!comp) return null;
+
+    const dukeComp = comp.competitors.find((c) => c.team.id === DUKE_ID);
+    const oppComp = comp.competitors.find((c) => c.team.id !== DUKE_ID);
+    if (!dukeComp || !oppComp) return null;
+
+    const teams = (data.boxscore?.players || []).map((teamData) => {
+      const isDuke = teamData.team.id === DUKE_ID;
+      // statistics is an array with one entry that has names + athletes
+      const statTable = teamData.statistics?.[0];
+      const columns: string[] = statTable?.names || [];
+      const totals: string[] = statTable?.totals || [];
+
+      const players = (statTable?.athletes || []).map((entry) => ({
+        id: String(entry.athlete?.id || ""),
+        name: entry.athlete?.displayName || "",
+        jersey: entry.athlete?.jersey || "",
+        photo: entry.athlete?.headshot?.href || "",
+        position: entry.athlete?.position?.abbreviation || "",
+        starter: entry.starter ?? false,
+        didNotPlay: entry.didNotPlay ?? false,
+        stats: entry.stats || [],
+      }));
+
+      return {
+        teamName: teamData.team.displayName,
+        teamId: teamData.team.id,
+        teamLogo: teamData.team.logo || `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamData.team.id}.png`,
+        isDuke,
+        columns,
+        players,
+        totals,
+      };
+    });
+
+    return {
+      gameId,
+      date: comp.date || "",
+      status: comp.status.type.state,
+      statusText: comp.status.type.shortDetail || "",
+      dukeScore: espnStr(dukeComp.score) || "0",
+      opponentScore: espnStr(oppComp.score) || "0",
+      opponent: espnStr(oppComp.team.displayName),
+      opponentLogo: espnStr(oppComp.team.logo) || `https://a.espncdn.com/i/teamlogos/ncaa/500/${oppComp.team.id}.png`,
+      isHome: dukeComp.homeAway === "home",
+      venue: espnStr(comp.venue?.fullName) || "",
+      teams,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPlayerGameLog(playerId: string): Promise<{
+  columns: string[];
+  totals: string[];
+  games: Array<{
+    gameId: string;
+    date: string;
+    opponent: string;
+    opponentLogo: string;
+    isHome: boolean;
+    result: string;
+    score: string;
+    stats: string[];
+  }>;
+} | null> {
+  try {
+    const data = await espnFetch<{
+      labels: string[];
+      totals: string[];
+      events: Record<string, {
+        atVs: string;
+        gameDate: string;
+        score: string;
+        homeTeamId: string;
+        gameResult: string;
+        opponent: { displayName: string; logo: string };
+        team: { id: string };
+      }>;
+      seasonTypes: Array<{
+        categories: Array<{
+          events: Array<{ eventId: string; stats: string[] }>;
+        }>;
+      }>;
+    }>(
+      `${WEB_BASE}/athletes/${playerId}/gamelog`,
+      `gamelog:${playerId}`,
+      10 * 60 * 1000
+    );
+
+    const columns = data.labels || [];
+    const totals = data.totals || [];
+    const eventsMeta = data.events || {};
+    const statEvents = data.seasonTypes?.[0]?.categories?.[0]?.events || [];
+
+    const games = statEvents
+      .map((se) => {
+        const meta = eventsMeta[se.eventId];
+        if (!meta) return null;
+        const isHome = meta.homeTeamId === DUKE_ID;
+        return {
+          gameId: se.eventId,
+          date: meta.gameDate,
+          opponent: meta.opponent?.displayName || "Unknown",
+          opponentLogo: meta.opponent?.logo || "",
+          isHome,
+          result: meta.gameResult || "",
+          score: meta.score || "",
+          stats: se.stats,
+        };
+      })
+      .filter(Boolean) as Array<{
+        gameId: string;
+        date: string;
+        opponent: string;
+        opponentLogo: string;
+        isHome: boolean;
+        result: string;
+        score: string;
+        stats: string[];
+      }>;
+
+    return { columns, totals, games };
+  } catch {
+    return null;
+  }
+}
+
 // Normalize an ESPN event into our app's game shape
 function normalizeGame(event: import("@/types/espn").EspnGame): NormalizedGame {
   const comp = event.competitions?.[0];

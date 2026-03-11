@@ -124,10 +124,19 @@ export interface EspnGameSummaryResponse {
       team: EspnTeam;
       statistics: Array<{
         names: string[];
+        totals?: string[];
         athletes: Array<{
-          athlete: { id: string; displayName: string; jersey?: string };
+          athlete: {
+            id: string;
+            displayName: string;
+            jersey?: string;
+            headshot?: { href: string };
+            position?: { abbreviation: string };
+          };
           stats: string[];
           active: boolean;
+          starter?: boolean;
+          didNotPlay?: boolean;
         }>;
       }>;
     }>;
@@ -135,8 +144,10 @@ export interface EspnGameSummaryResponse {
   plays?: EspnPlay[];
   header?: {
     competitions: Array<{
+      date?: string;
       competitors: EspnCompetitor[];
       status: EspnGameStatus;
+      venue?: { fullName: string };
     }>;
   };
 }
