@@ -49,33 +49,22 @@ export async function fetchRawRoster(): Promise<EspnRosterResponse> {
 
 export async function fetchRoster(): Promise<NormalizedPlayer[]> {
   const data = await fetchRawRoster();
-  const players: NormalizedPlayer[] = [];
-  for (const group of data.athletes || []) {
-    for (const athlete of group.items || []) {
-      const stats = Object.fromEntries(
-        (athlete.statistics || []).map((s) => [s.name, s.displayValue])
-      );
-      players.push({
-        id: athlete.id,
-        name: athlete.displayName,
-        jersey: athlete.jersey || "-",
-        position: athlete.position?.abbreviation || "-",
-        positionFull: athlete.position?.displayName || "-",
-        height: athlete.height ? formatHeight(athlete.height) : "-",
-        weight: athlete.weight ? `${athlete.weight} lbs` : "-",
-        year: athlete.experience?.displayValue || "-",
-        photo: athlete.headshot?.href || null,
-        ppg: stats["ppg"] || stats["avgPoints"] || "-",
-        rpg: stats["rpg"] || stats["avgRebounds"] || "-",
-        apg: stats["apg"] || stats["avgAssists"] || "-",
-        fgp: stats["fgp"] || stats["fieldGoalPct"] || "-",
-        hometown: athlete.hometown
-          ? `${athlete.hometown.city}, ${athlete.hometown.state}`
-          : "-",
-      });
-    }
-  }
-  return players;
+  return (data.athletes || []).map((athlete) => ({
+    id: athlete.id,
+    name: athlete.displayName,
+    jersey: athlete.jersey || "-",
+    position: athlete.position?.abbreviation || "-",
+    positionFull: athlete.position?.displayName || "-",
+    height: athlete.displayHeight || (athlete.height ? formatHeight(athlete.height) : "-"),
+    weight: athlete.displayWeight || (athlete.weight ? `${athlete.weight} lbs` : "-"),
+    year: athlete.experience?.displayValue || "-",
+    photo: athlete.headshot?.href || null,
+    ppg: "-",
+    rpg: "-",
+    apg: "-",
+    fgp: "-",
+    hometown: athlete.birthPlace?.displayText || "-",
+  }));
 }
 
 export async function fetchRawScoreboard(): Promise<EspnScoreboardResponse> {
@@ -157,31 +146,47 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
 
 export async function fetchTeamStats(): Promise<NormalizedTeamStats | null> {
   try {
-    const data = await espnFetch<{ team: { record: { items: Array<{ summary: string; stats: Array<{ name: string; value: number }> }> } } }>(
-      `${BASE}/teams/${DUKE_ID}?enable=roster,projection,stats`,
-      "teamdetail",
-      15 * 60 * 1000
-    );
+    const [recordData, statsData] = await Promise.all([
+      espnFetch<{ team: { record: { items: Array<{ summary: string; stats: Array<{ name: string; value: number }> }> } } }>(
+        `${BASE}/teams/${DUKE_ID}?enable=roster,projection,stats`,
+        "teamdetail",
+        15 * 60 * 1000
+      ),
+      espnFetch<{ results: { stats: { categories: Array<{ name: string; stats: Array<{ name: string; displayValue: string; value: number }> }> } } }>(
+        `${BASE}/teams/${DUKE_ID}/statistics`,
+        "teamstats",
+        15 * 60 * 1000
+      ),
+    ]);
 
-    const record = data.team?.record?.items?.[0];
+    const record = recordData.team?.record?.items?.[0];
     if (!record) return null;
+    const recStats = Object.fromEntries(record.stats.map((s) => [s.name, s.value]));
 
-    const stats = Object.fromEntries(record.stats.map((s) => [s.name, s.value]));
+    // Flatten all stat categories into one map
+    const allStats: Record<string, string> = {};
+    for (const cat of statsData.results?.stats?.categories || []) {
+      for (const s of cat.stats || []) {
+        allStats[s.name] = s.displayValue;
+      }
+    }
+
+    const n = (key: string) => parseFloat(allStats[key] || "0");
 
     return {
       record: record.summary,
-      wins: stats["wins"] || 0,
-      losses: stats["losses"] || 0,
-      ppg: (stats["avgPoints"] || stats["pointsPerGame"] || 0).toFixed(1),
-      oppPpg: (stats["avgPointsAllowed"] || stats["opponentPointsPerGame"] || 0).toFixed(1),
-      fgp: (stats["fieldGoalPct"] || 0).toFixed(1),
-      threePtp: (stats["threePointFieldGoalPct"] || 0).toFixed(1),
-      ftPct: (stats["freeThrowPct"] || 0).toFixed(1),
-      rpg: (stats["avgRebounds"] || stats["reboundsPerGame"] || 0).toFixed(1),
-      apg: (stats["avgAssists"] || stats["assistsPerGame"] || 0).toFixed(1),
-      spg: (stats["avgSteals"] || stats["stealsPerGame"] || 0).toFixed(1),
-      bpg: (stats["avgBlocks"] || stats["blocksPerGame"] || 0).toFixed(1),
-      topg: (stats["avgTurnovers"] || stats["turnoversPerGame"] || 0).toFixed(1),
+      wins: recStats["wins"] || 0,
+      losses: recStats["losses"] || 0,
+      ppg: allStats["avgPoints"] || (recStats["avgPointsFor"] || 0).toFixed(1),
+      oppPpg: (recStats["avgPointsAgainst"] || 0).toFixed(1),
+      fgp: allStats["fieldGoalPct"] || "0.0",
+      threePtp: allStats["threePointFieldGoalPct"] || "0.0",
+      ftPct: allStats["freeThrowPct"] || "0.0",
+      rpg: allStats["avgRebounds"] || "0.0",
+      apg: allStats["avgAssists"] || "0.0",
+      spg: allStats["avgSteals"] || "0.0",
+      bpg: allStats["avgBlocks"] || "0.0",
+      topg: allStats["avgTurnovers"] || "0.0",
     };
   } catch {
     return null;

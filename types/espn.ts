@@ -83,20 +83,19 @@ export interface EspnRosterAthlete {
   jersey?: string;
   position: { abbreviation: string; displayName: string };
   height?: number;
+  displayHeight?: string;
   weight?: number;
+  displayWeight?: string;
   experience?: { displayValue: string; years: number };
   headshot?: { href: string; alt: string };
   statistics?: Array<{ name: string; displayValue: string; abbreviation: string }>;
-  hometown?: { city: string; state: string };
+  birthPlace?: { city: string; state: string; country: string; displayText: string };
   dateOfBirth?: string;
 }
 
 export interface EspnRosterResponse {
   team: EspnTeam;
-  athletes: Array<{
-    position: string;
-    items: EspnRosterAthlete[];
-  }>;
+  athletes: EspnRosterAthlete[];
   coach?: Array<{ id: string; firstName: string; lastName: string; experience: number }>;
 }
 
