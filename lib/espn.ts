@@ -12,6 +12,7 @@ import type {
 import { formatHeight } from "./utils";
 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball";
+const WEB_BASE = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/mens-college-basketball";
 const DUKE_ID = "150";
 const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; DukeBasketballApp/1.0)" };
 
@@ -47,9 +48,35 @@ export async function fetchRawRoster(): Promise<EspnRosterResponse> {
   );
 }
 
+async function fetchAthleteStats(athleteId: string): Promise<{ ppg: string; rpg: string; apg: string; fgp: string }> {
+  try {
+    const data = await espnFetch<{ categories: Array<{ name: string; totals: string[] }> }>(
+      `${WEB_BASE}/athletes/${athleteId}/stats?season=2025&seasontype=2&per=perGame`,
+      `playerstats:${athleteId}`,
+      15 * 60 * 1000
+    );
+    const avgs = data.categories?.find((c) => c.name === "averages");
+    const tots = avgs?.totals || [];
+    // tots order: [GP, GS, MIN, FG, FG%, 3PT, 3P%, FT, FT%, OR, DR, REB, AST, TO, STL, BLK, PF, PTS]
+    return {
+      ppg: tots[17] || "-",
+      rpg: tots[11] || "-",
+      apg: tots[12] || "-",
+      fgp: tots[4] ? `${tots[4]}%` : "-",
+    };
+  } catch {
+    return { ppg: "-", rpg: "-", apg: "-", fgp: "-" };
+  }
+}
+
 export async function fetchRoster(): Promise<NormalizedPlayer[]> {
   const data = await fetchRawRoster();
-  return (data.athletes || []).map((athlete) => ({
+  const athletes = data.athletes || [];
+
+  // Fetch stats for all players in parallel
+  const statsArr = await Promise.all(athletes.map((a) => fetchAthleteStats(a.id)));
+
+  return athletes.map((athlete, i) => ({
     id: athlete.id,
     name: athlete.displayName,
     jersey: athlete.jersey || "-",
@@ -59,10 +86,10 @@ export async function fetchRoster(): Promise<NormalizedPlayer[]> {
     weight: athlete.displayWeight || (athlete.weight ? `${athlete.weight} lbs` : "-"),
     year: athlete.experience?.displayValue || "-",
     photo: athlete.headshot?.href || null,
-    ppg: "-",
-    rpg: "-",
-    apg: "-",
-    fgp: "-",
+    ppg: statsArr[i].ppg,
+    rpg: statsArr[i].rpg,
+    apg: statsArr[i].apg,
+    fgp: statsArr[i].fgp,
     hometown: athlete.birthPlace?.displayText || "-",
   }));
 }
