@@ -215,24 +215,29 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
         <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Betting Odds</h2>
         {odds ? (
           <>
-            <div className="grid grid-cols-3 gap-3">
-              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center group">
-                <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.spread}</div>
-                <div className="text-xs text-gray-400 uppercase tracking-wide">Spread</div>
-              </a>
-              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center border-x border-gray-100 group">
-                <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.overUnder}</div>
-                <div className="text-xs text-gray-400 uppercase tracking-wide">Over/Under</div>
-              </a>
-              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center group">
-                <div className="text-sm font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif] leading-tight">
-                  <div>Duke {odds[game.isHome ? "homeMoneyline" : "awayMoneyline"]}</div>
-                  <div className="text-gray-400">{game.opponent.split(" ").slice(-1)[0]} {odds[game.isHome ? "awayMoneyline" : "homeMoneyline"]}</div>
+            {(() => {
+              const betUrl = `https://www.espnbet.com/sport/basketball/organization/us/competition/college-basketball/event/${id}`;
+              return (
+                <div className="grid grid-cols-3 gap-3">
+                  <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center group">
+                    <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.spread}</div>
+                    <div className="text-xs text-gray-400 uppercase tracking-wide">Spread</div>
+                  </a>
+                  <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center border-x border-gray-100 group">
+                    <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.overUnder}</div>
+                    <div className="text-xs text-gray-400 uppercase tracking-wide">Over/Under</div>
+                  </a>
+                  <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center group">
+                    <div className="text-sm font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif] leading-tight">
+                      <div>Duke {odds[game.isHome ? "homeMoneyline" : "awayMoneyline"]}</div>
+                      <div className="text-gray-400">{game.opponent.split(" ").slice(-1)[0]} {odds[game.isHome ? "awayMoneyline" : "homeMoneyline"]}</div>
+                    </div>
+                    <div className="text-xs text-gray-400 uppercase tracking-wide">Moneyline</div>
+                  </a>
                 </div>
-                <div className="text-xs text-gray-400 uppercase tracking-wide">Moneyline</div>
-              </a>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-3 text-center">Source: {odds.provider} · Bet on <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="underline">Kalshi</a> · Lines subject to change</p>
+              );
+            })()}
+            <p className="text-[10px] text-gray-400 mt-3 text-center">Source: {odds.provider} · Bet on <a href={`https://www.espnbet.com/sport/basketball/organization/us/competition/college-basketball/event/${id}`} target="_blank" rel="noopener noreferrer" className="underline">ESPN BET</a> · Lines subject to change</p>
           </>
         ) : (
           <p className="text-sm text-gray-400 text-center py-2">Odds not yet available for this game.</p>
