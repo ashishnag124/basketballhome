@@ -1,11 +1,13 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { NormalizedGame } from "@/types/espn";
 import { formatDateTime } from "@/lib/utils";
 
 export default function NextGameCard({ game, isToday }: { game: NormalizedGame; isToday?: boolean }) {
   return (
-    <div
-      className={`rounded-2xl p-5 shadow-sm ${
+    <Link
+      href={`/pregame/${game.id}`}
+      className={`block rounded-2xl p-5 shadow-sm transition-opacity hover:opacity-90 ${
         isToday
           ? "bg-gradient-to-r from-[#003087] to-[#0736A4] text-white"
           : "bg-white"
@@ -51,6 +53,11 @@ export default function NextGameCard({ game, isToday }: { game: NormalizedGame; 
           )}
         </div>
       </div>
-    </div>
+      <div className={`mt-3 pt-3 border-t flex items-center justify-end text-xs font-semibold ${
+        isToday ? "border-white/10 text-white/60" : "border-gray-100 text-[#003087]"
+      }`}>
+        Game Preview →
+      </div>
+    </Link>
   );
 }
