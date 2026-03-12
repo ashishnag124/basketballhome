@@ -2,6 +2,7 @@ import { getCached, setCached } from "./cache";
 import type {
   EspnScheduleResponse,
   EspnRosterResponse,
+  EspnRosterAthlete,
   EspnScoreboardResponse,
   EspnGameSummaryResponse,
   NormalizedGame,
@@ -403,6 +404,37 @@ export async function fetchPlayerGameLog(playerId: string): Promise<{
       }>;
 
     return { columns, totals, games };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchAthleteBasicInfo(athleteId: string): Promise<NormalizedPlayer | null> {
+  try {
+    const data = await espnFetch<{ athlete: EspnRosterAthlete }>(
+      `${WEB_BASE}/athletes/${athleteId}`,
+      `athleteinfo:${athleteId}`,
+      60 * 60 * 1000
+    );
+    const a = data.athlete;
+    if (!a) return null;
+    const stats = await fetchAthleteStats(athleteId);
+    return {
+      id: a.id,
+      name: a.displayName,
+      jersey: a.jersey || "-",
+      position: a.position?.abbreviation || "-",
+      positionFull: a.position?.displayName || "-",
+      height: a.displayHeight || (a.height ? formatHeight(a.height) : "-"),
+      weight: a.displayWeight || (a.weight ? `${a.weight} lbs` : "-"),
+      year: a.experience?.displayValue || "-",
+      photo: a.headshot?.href || null,
+      ppg: stats.ppg,
+      rpg: stats.rpg,
+      apg: stats.apg,
+      fgp: stats.fgp,
+      hometown: a.birthPlace?.displayText || "-",
+    };
   } catch {
     return null;
   }
