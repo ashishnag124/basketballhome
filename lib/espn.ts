@@ -408,6 +408,153 @@ export async function fetchPlayerGameLog(playerId: string): Promise<{
   }
 }
 
+export async function fetchOpponentRoster(teamId: string): Promise<NormalizedPlayer[]> {
+  try {
+    const data = await espnFetch<EspnRosterResponse>(
+      `${BASE}/teams/${teamId}/roster`,
+      `roster:${teamId}`,
+      60 * 60 * 1000
+    );
+    const athletes = data.athletes || [];
+    const statsArr = await Promise.all(athletes.map((a) => fetchAthleteStats(a.id)));
+    return athletes.map((athlete, i) => ({
+      id: athlete.id,
+      name: athlete.displayName,
+      jersey: athlete.jersey || "-",
+      position: athlete.position?.abbreviation || "-",
+      positionFull: athlete.position?.displayName || "-",
+      height: athlete.displayHeight || (athlete.height ? formatHeight(athlete.height) : "-"),
+      weight: athlete.displayWeight || (athlete.weight ? `${athlete.weight} lbs` : "-"),
+      year: athlete.experience?.displayValue || "-",
+      photo: athlete.headshot?.href || null,
+      ppg: statsArr[i].ppg,
+      rpg: statsArr[i].rpg,
+      apg: statsArr[i].apg,
+      fgp: statsArr[i].fgp,
+      hometown: athlete.birthPlace?.displayText || "-",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchOpponentStats(teamId: string): Promise<NormalizedTeamStats | null> {
+  try {
+    const [recordData, statsData] = await Promise.all([
+      espnFetch<{ team: { record: { items: Array<{ summary: string; stats: Array<{ name: string; value: number }> }> } } }>(
+        `${BASE}/teams/${teamId}?enable=roster,projection,stats`,
+        `teamdetail:${teamId}`,
+        15 * 60 * 1000
+      ),
+      espnFetch<{ results: { stats: { categories: Array<{ name: string; stats: Array<{ name: string; displayValue: string; value: number }> }> } } }>(
+        `${BASE}/teams/${teamId}/statistics`,
+        `oppstats:${teamId}`,
+        15 * 60 * 1000
+      ),
+    ]);
+
+    const record = recordData.team?.record?.items?.[0];
+    if (!record) return null;
+    const recStats = Object.fromEntries(record.stats.map((s) => [s.name, s.value]));
+    const allStats: Record<string, string> = {};
+    for (const cat of statsData.results?.stats?.categories || []) {
+      for (const s of cat.stats || []) {
+        allStats[s.name] = s.displayValue;
+      }
+    }
+    return {
+      record: record.summary,
+      wins: recStats["wins"] || 0,
+      losses: recStats["losses"] || 0,
+      ppg: allStats["avgPoints"] || (recStats["avgPointsFor"] || 0).toFixed(1),
+      oppPpg: (recStats["avgPointsAgainst"] || 0).toFixed(1),
+      fgp: allStats["fieldGoalPct"] || "0.0",
+      threePtp: allStats["threePointFieldGoalPct"] || "0.0",
+      ftPct: allStats["freeThrowPct"] || "0.0",
+      rpg: allStats["avgRebounds"] || "0.0",
+      apg: allStats["avgAssists"] || "0.0",
+      spg: allStats["avgSteals"] || "0.0",
+      bpg: allStats["avgBlocks"] || "0.0",
+      topg: allStats["avgTurnovers"] || "0.0",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPregameData(gameId: string, opponentId: string): Promise<{
+  odds: { spread: string; overUnder: string; homeMoneyline: string; awayMoneyline: string; provider: string } | null;
+  winProbability: { dukeChance: number; oppChance: number; oppName: string; dukeName: string } | null;
+  opponentStats: NormalizedTeamStats | null;
+}> {
+  const [summaryResult, oppStatsResult] = await Promise.allSettled([
+    espnFetch<{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pickcenter?: any[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      predictor?: any;
+      header?: EspnGameSummaryResponse["header"];
+    }>(`${BASE}/summary?event=${gameId}`, `pregame:${gameId}`, 5 * 60 * 1000),
+    fetchOpponentStats(opponentId),
+  ]);
+
+  let odds = null;
+  let winProbability = null;
+
+  if (summaryResult.status === "fulfilled") {
+    const summary = summaryResult.value;
+
+    // Extract odds from pickcenter
+    const pick = summary.pickcenter?.[0];
+    if (pick) {
+      const comp = summary.header?.competitions?.[0];
+      const dukeComp = comp?.competitors.find((c) => c.team.id === DUKE_ID);
+      const oppComp = comp?.competitors.find((c) => c.team.id !== DUKE_ID);
+      const dukeIsHome = dukeComp?.homeAway === "home";
+      const dukeOdds = dukeIsHome ? pick.homeTeamOdds : pick.awayTeamOdds;
+      const oppOdds = dukeIsHome ? pick.awayTeamOdds : pick.homeTeamOdds;
+      const homeMoneyline = dukeIsHome
+        ? (dukeOdds?.moneyLine != null ? (dukeOdds.moneyLine > 0 ? `+${dukeOdds.moneyLine}` : String(dukeOdds.moneyLine)) : "N/A")
+        : (oppOdds?.moneyLine != null ? (oppOdds.moneyLine > 0 ? `+${oppOdds.moneyLine}` : String(oppOdds.moneyLine)) : "N/A");
+      const awayMoneyline = dukeIsHome
+        ? (oppOdds?.moneyLine != null ? (oppOdds.moneyLine > 0 ? `+${oppOdds.moneyLine}` : String(oppOdds.moneyLine)) : "N/A")
+        : (dukeOdds?.moneyLine != null ? (dukeOdds.moneyLine > 0 ? `+${dukeOdds.moneyLine}` : String(dukeOdds.moneyLine)) : "N/A");
+      odds = {
+        spread: pick.details || "N/A",
+        overUnder: pick.overUnder != null ? String(pick.overUnder) : "N/A",
+        homeMoneyline,
+        awayMoneyline,
+        provider: pick.provider?.name || "ESPN BET",
+      };
+      void oppComp;
+    }
+
+    // Extract win probability from predictor
+    const predictor = summary.predictor;
+    if (predictor?.homeTeam && predictor?.awayTeam) {
+      const comp = summary.header?.competitions?.[0];
+      const dukeComp = comp?.competitors.find((c) => c.team.id === DUKE_ID);
+      const dukeIsHome = dukeComp?.homeAway === "home";
+      const dukeTeam = dukeIsHome ? predictor.homeTeam : predictor.awayTeam;
+      const oppTeam = dukeIsHome ? predictor.awayTeam : predictor.homeTeam;
+      const dukeChance = dukeTeam?.teamChanceWin ?? (100 - (oppTeam?.teamChanceWin ?? 50));
+      const oppChance = oppTeam?.teamChanceWin ?? (100 - dukeChance);
+      winProbability = {
+        dukeChance: Math.round(dukeChance),
+        oppChance: Math.round(oppChance),
+        oppName: oppTeam?.name || "Opponent",
+        dukeName: "Duke",
+      };
+    }
+  }
+
+  return {
+    odds,
+    winProbability,
+    opponentStats: oppStatsResult.status === "fulfilled" ? oppStatsResult.value : null,
+  };
+}
+
 // Normalize an ESPN event into our app's game shape
 function normalizeGame(event: import("@/types/espn").EspnGame): NormalizedGame {
   const comp = event.competitions?.[0];
