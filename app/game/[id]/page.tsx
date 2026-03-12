@@ -12,7 +12,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   const gameDate = new Date(game.date);
   const dateStr = gameDate.toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
+    weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles",
   });
 
   const dukeWon = parseInt(game.dukeScore) > parseInt(game.opponentScore);

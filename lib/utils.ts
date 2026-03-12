@@ -4,12 +4,15 @@ export function formatHeight(inches: number): string {
   return `${feet}'${remaining}"`;
 }
 
+const TZ = "America/Los_Angeles";
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
+    timeZone: TZ,
   });
 }
 
@@ -19,15 +22,18 @@ export function formatTime(dateStr: string): string {
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",
+    timeZone: TZ,
   });
 }
 
 export function formatDateTime(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
+  const dateDayStr = date.toLocaleDateString("en-US", { timeZone: TZ });
+  const nowDayStr = now.toLocaleDateString("en-US", { timeZone: TZ });
+  const isToday = dateDayStr === nowDayStr;
   if (isToday) {
-    return `Today, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+    return `Today, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: TZ })}`;
   }
   return date.toLocaleDateString("en-US", {
     weekday: "short",
@@ -35,11 +41,16 @@ export function formatDateTime(dateStr: string): string {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: TZ,
   });
 }
 
 export function isToday(dateStr: string): boolean {
-  return new Date(dateStr).toDateString() === new Date().toDateString();
+  const tz = TZ;
+  return (
+    new Date(dateStr).toLocaleDateString("en-US", { timeZone: tz }) ===
+    new Date().toLocaleDateString("en-US", { timeZone: tz })
+  );
 }
 
 export function isPast(dateStr: string): boolean {

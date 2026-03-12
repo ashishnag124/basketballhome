@@ -162,7 +162,7 @@ export default function LivePage() {
           </span>
           {lastUpdated && (
             <span className="text-xs text-gray-400">
-              {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              {lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/Los_Angeles" })}
             </span>
           )}
         </div>

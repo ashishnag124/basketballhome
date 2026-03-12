@@ -26,10 +26,10 @@ export default function GameRow({ game }: { game: NormalizedGame }) {
         ) : (
           <>
             <div className="text-xs text-gray-400 uppercase">
-              {new Date(game.date).toLocaleDateString("en-US", { weekday: "short" })}
+              {new Date(game.date).toLocaleDateString("en-US", { weekday: "short", timeZone: "America/Los_Angeles" })}
             </div>
             <div className="text-sm font-bold text-gray-700">
-              {new Date(game.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {new Date(game.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" })}
             </div>
           </>
         )}
