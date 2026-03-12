@@ -585,8 +585,8 @@ export async function fetchPregameData(gameId: string, opponentId: string, teamI
       const ourIsHome = ourComp?.homeAway === "home";
       const ourTeam = ourIsHome ? predictor.homeTeam : predictor.awayTeam;
       const oppTeam = ourIsHome ? predictor.awayTeam : predictor.homeTeam;
-      const ourChance = ourTeam?.teamChanceWin ?? (100 - (oppTeam?.teamChanceWin ?? 50));
-      const oppChance = oppTeam?.teamChanceWin ?? (100 - ourChance);
+      const ourChance = parseFloat(ourTeam?.gameProjection ?? "") || (100 - (parseFloat(oppTeam?.gameProjection ?? "") || 50));
+      const oppChance = parseFloat(oppTeam?.gameProjection ?? "") || (100 - ourChance);
       winProbability = {
         dukeChance: Math.round(ourChance),
         oppChance: Math.round(oppChance),
