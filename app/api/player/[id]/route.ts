@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
 import { fetchPlayerGameLog } from "@/lib/espn";
 
 export async function GET(
@@ -7,7 +9,9 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const data = await fetchPlayerGameLog(id);
+    const cookieStore = await cookies();
+    const tc = getTeamConfig(cookieStore.get(TEAM_COOKIE)?.value);
+    const data = await fetchPlayerGameLog(id, tc.id);
     if (!data) return NextResponse.json({ error: "Player not found" }, { status: 404 });
     return NextResponse.json(data);
   } catch (err) {
