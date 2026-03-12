@@ -57,7 +57,6 @@ async function fetchAthleteStats(athleteId: string): Promise<{ ppg: string; rpg:
     );
     const avgs = data.categories?.find((c) => c.name === "averages");
     const tots = avgs?.totals || [];
-    // tots order: [GP, GS, MIN, FG, FG%, 3PT, 3P%, FT, FT%, OR, DR, REB, AST, TO, STL, BLK, PF, PTS]
     return {
       ppg: tots[17] || "-",
       rpg: tots[11] || "-",
@@ -72,9 +71,7 @@ async function fetchAthleteStats(athleteId: string): Promise<{ ppg: string; rpg:
 export async function fetchRoster(teamId: string): Promise<NormalizedPlayer[]> {
   const data = await fetchRawRoster(teamId);
   const athletes = data.athletes || [];
-
   const statsArr = await Promise.all(athletes.map((a) => fetchAthleteStats(a.id)));
-
   return athletes.map((athlete, i) => ({
     id: athlete.id,
     name: athlete.displayName,
@@ -249,7 +246,6 @@ export async function fetchNextGame(teamId: string): Promise<NormalizedGame | nu
   }
 }
 
-// Safely extract a string from an ESPN value that may be a string or {value, displayValue} object
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function espnStr(v: any): string {
   if (!v) return "";
@@ -306,7 +302,7 @@ export async function fetchGameBoxScore(gameId: string, teamId: string): Promise
     if (!ourComp || !oppComp) return null;
 
     const teams = (data.boxscore?.players || []).map((teamData) => {
-      const isDuke = teamData.team.id === teamId;
+      const isOurTeam = teamData.team.id === teamId;
       const statTable = teamData.statistics?.[0];
       const columns: string[] = statTable?.names || [];
       const totals: string[] = statTable?.totals || [];
@@ -326,7 +322,7 @@ export async function fetchGameBoxScore(gameId: string, teamId: string): Promise
         teamName: teamData.team.displayName,
         teamId: teamData.team.id,
         teamLogo: teamData.team.logo || `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamData.team.id}.png`,
-        isDuke,
+        isDuke: isOurTeam,
         columns,
         players,
         totals,

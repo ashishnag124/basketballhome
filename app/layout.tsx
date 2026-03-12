@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Oswald } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import NavBar from "@/components/nav/NavBar";
 import { findTeamGame } from "@/lib/espn";
-import { cookies } from "next/headers";
 import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
