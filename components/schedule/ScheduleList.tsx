@@ -7,6 +7,7 @@ function groupByMonth(games: NormalizedGame[]): Record<string, NormalizedGame[]>
     const month = new Date(game.date).toLocaleDateString("en-US", {
       month: "long",
       year: "numeric",
+      timeZone: "America/Los_Angeles",
     });
     if (!groups[month]) groups[month] = [];
     groups[month].push(game);
