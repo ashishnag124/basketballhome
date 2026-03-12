@@ -112,9 +112,6 @@ export default async function HomePage({
         )}
       </div>
 
-      {/* Team selector */}
-      <TeamSelector currentTeam={tc} />
-
       {isLive && currentGame && <LiveGameBanner game={currentGame} />}
       {!isLive && isGameToday && currentGame && <NextGameCard game={currentGame} isToday />}
       {!isLive && !isGameToday && nextGame && <NextGameCard game={nextGame} />}
