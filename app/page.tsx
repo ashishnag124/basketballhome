@@ -1,18 +1,28 @@
 import Link from "next/link";
 import Image from "next/image";
 import { cookies } from "next/headers";
-import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
+import { redirect } from "next/navigation";
 import { findTeamGame, fetchSchedule, fetchTeamStats, fetchRoster } from "@/lib/espn";
+import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
 import LiveGameBanner from "@/components/live/LiveGameBanner";
 import NextGameCard from "@/components/live/NextGameCard";
-import TeamSelector from "@/components/TeamSelector";
 import { isToday } from "@/lib/utils";
 
 export const revalidate = 30;
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
   const cookieStore = await cookies();
   const tc = getTeamConfig(cookieStore.get(TEAM_COOKIE)?.value);
+  const { team: teamParam } = await searchParams;
+
+  // Handle bookmarked team URLs: /?team=57 sets cookie then stays at /?team=57
+  if (teamParam && teamParam !== tc.id) {
+    redirect(`/api/set-team?id=${teamParam}`);
+  }
 
   const [game, games, teamStats, rosterResult] = await Promise.allSettled([
     findTeamGame(tc.id),

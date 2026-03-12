@@ -11,6 +11,17 @@ interface NavItem {
   icon: string;
 }
 
+interface ConferenceOption {
+  id: string;
+  name: string;
+  shortName: string;
+}
+
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
 const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: "🏠" },
   { href: "/schedule", label: "Schedule", icon: "📅" },
@@ -25,25 +36,94 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  const [conferences, setConferences] = useState<ConferenceOption[]>([]);
+  const [selectedConf, setSelectedConf] = useState("");
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [loadingConf, setLoadingConf] = useState(true);
+  const [loadingTeams, setLoadingTeams] = useState(false);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    fetch("/api/teams")
+      .then((r) => r.json())
+      .then((d) => setConferences(d.conferences || []))
+      .finally(() => setLoadingConf(false));
+  }, []);
+
+  async function handleConferenceChange(confId: string) {
+    setSelectedConf(confId);
+    setTeams([]);
+    if (!confId) return;
+    setLoadingTeams(true);
+    const res = await fetch(`/api/teams?conference=${confId}`);
+    const data = await res.json();
+    setTeams(data.teams || []);
+    setLoadingTeams(false);
+  }
+
+  function handleTeamSelect(teamId: string) {
+    if (!teamId) return;
+    window.location.href = `/?team=${teamId}`;
+  }
+
+  const selectClass =
+    "bg-white/10 text-white text-xs rounded-lg px-2 py-1.5 border border-white/20 focus:outline-none focus:border-white/40 disabled:opacity-50";
+
   return (
     <>
       {/* Desktop top nav */}
       <nav
-        className={`hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-[var(--color-primary)] text-white transition-shadow ${
+        className={`hidden md:flex fixed top-0 left-0 right-0 z-50 items-center px-6 py-3 bg-[var(--color-primary)] text-white transition-shadow ${
           scrolled ? "shadow-lg" : ""
         }`}
       >
-        <Link href="/" className="flex items-center gap-2 font-['Oswald',sans-serif] text-xl font-bold tracking-wide">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 font-['Oswald',sans-serif] text-xl font-bold tracking-wide shrink-0">
           <span className="text-[var(--color-accent)]">{teamConfig.shortName.toUpperCase()}</span>
           <span>BASKETBALL</span>
         </Link>
-        <div className="flex items-center gap-1">
+
+        {/* Team selector — between logo and nav links */}
+        <div className="flex items-center gap-1.5 mx-5">
+          <select
+            value={selectedConf}
+            onChange={(e) => handleConferenceChange(e.target.value)}
+            disabled={loadingConf}
+            className={`${selectClass} max-w-[120px]`}
+          >
+            <option value="" className="bg-[var(--color-primary)] text-white">
+              {loadingConf ? "Loading…" : "Conference"}
+            </option>
+            {conferences.map((c) => (
+              <option key={c.id} value={c.id} className="bg-[var(--color-primary)] text-white">
+                {c.shortName}
+              </option>
+            ))}
+          </select>
+          <select
+            value=""
+            onChange={(e) => handleTeamSelect(e.target.value)}
+            disabled={!selectedConf || loadingTeams}
+            className={`${selectClass} max-w-[130px]`}
+          >
+            <option value="" className="bg-[var(--color-primary)] text-white">
+              {loadingTeams ? "Loading…" : "Team"}
+            </option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id} className="bg-[var(--color-primary)] text-white">
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Nav links */}
+        <div className="flex items-center gap-1 ml-auto">
           {navItems.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
@@ -110,6 +190,44 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
               </Link>
             );
           })}
+
+          {/* Team selector in mobile menu */}
+          <div className="px-5 py-4 border-t border-white/10 space-y-2">
+            <p className="text-xs text-white/50 uppercase tracking-widest font-bold">Change Team</p>
+            <select
+              value={selectedConf}
+              onChange={(e) => handleConferenceChange(e.target.value)}
+              disabled={loadingConf}
+              className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/20 focus:outline-none disabled:opacity-50"
+            >
+              <option value="" className="bg-[var(--color-secondary)] text-white">
+                {loadingConf ? "Loading…" : "Select conference…"}
+              </option>
+              {conferences.map((c) => (
+                <option key={c.id} value={c.id} className="bg-[var(--color-secondary)] text-white">
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value=""
+              onChange={(e) => {
+                handleTeamSelect(e.target.value);
+                setMenuOpen(false);
+              }}
+              disabled={!selectedConf || loadingTeams}
+              className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/20 focus:outline-none disabled:opacity-50"
+            >
+              <option value="" className="bg-[var(--color-secondary)] text-white">
+                {loadingTeams ? "Loading…" : "Select team…"}
+              </option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id} className="bg-[var(--color-secondary)] text-white">
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
