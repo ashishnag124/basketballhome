@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import PlayByPlayFeed from "@/components/live/PlayByPlayFeed";
-import type { LiveGameData, NormalizedGame } from "@/types/espn";
+import type { LiveGameData, NormalizedGame, LiveBoxScoreTeam } from "@/types/espn";
 
 type LiveResponse =
   | { status: "live"; game: LiveGameData }
@@ -13,6 +13,97 @@ type LiveResponse =
   | { error: string };
 
 const POLL_INTERVAL = 30_000;
+
+function BoxScoreTable({ team }: { team: LiveBoxScoreTeam }) {
+  const ptsIdx = team.columns.indexOf("PTS");
+  const starters = team.players.filter((p) => p.starter && !p.didNotPlay);
+  const bench = team.players.filter((p) => !p.starter && !p.didNotPlay);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Image src={team.teamLogo} alt={team.teamName} width={20} height={20} unoptimized />
+        <span className={`text-xs font-bold uppercase ${team.isDuke ? "text-[#003087]" : "text-gray-600"}`}>
+          {team.teamName}
+        </span>
+        {team.isDuke && <span className="text-[10px] bg-[#003087] text-white px-1.5 py-0.5 rounded font-bold">DUKE</span>}
+      </div>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[500px]">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-3 py-2 font-semibold text-gray-500 sticky left-0 bg-gray-50 min-w-[120px]">PLAYER</th>
+                {team.columns.map((col) => (
+                  <th key={col} className="text-center px-2 py-2 font-semibold text-gray-500 whitespace-nowrap">{col}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {starters.map((player) => (
+                <tr key={player.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="px-3 py-2 sticky left-0 bg-white">
+                    <Link href={`/player/${player.id}`} className="flex items-center gap-2 hover:text-[#003087]">
+                      {player.photo ? (
+                        <Image src={player.photo} alt={player.name} width={24} height={24} className="rounded-full object-cover shrink-0" unoptimized />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-[10px] shrink-0">👤</div>
+                      )}
+                      <div>
+                        <div className="font-semibold text-gray-800 whitespace-nowrap">{player.name}</div>
+                        <div className="text-gray-400">{player.position} · S</div>
+                      </div>
+                    </Link>
+                  </td>
+                  {player.stats.map((stat, i) => (
+                    <td key={i} className={`text-center px-2 py-2 tabular-nums ${i === ptsIdx ? "font-bold text-[#003087]" : "text-gray-700"}`}>
+                      {stat}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {bench.length > 0 && (
+                <tr>
+                  <td colSpan={team.columns.length + 1} className="px-3 py-1 bg-gray-50 text-[10px] text-gray-400 font-semibold uppercase tracking-widest">Bench</td>
+                </tr>
+              )}
+              {bench.map((player) => (
+                <tr key={player.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="px-3 py-2 sticky left-0 bg-white">
+                    <Link href={`/player/${player.id}`} className="flex items-center gap-2 hover:text-[#003087]">
+                      {player.photo ? (
+                        <Image src={player.photo} alt={player.name} width={24} height={24} className="rounded-full object-cover shrink-0" unoptimized />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-[10px] shrink-0">👤</div>
+                      )}
+                      <div>
+                        <div className="font-semibold text-gray-800 whitespace-nowrap">{player.name}</div>
+                        <div className="text-gray-400">{player.position}</div>
+                      </div>
+                    </Link>
+                  </td>
+                  {player.stats.map((stat, i) => (
+                    <td key={i} className={`text-center px-2 py-2 tabular-nums ${i === ptsIdx ? "font-bold text-[#003087]" : "text-gray-700"}`}>
+                      {stat}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {team.totals.length > 0 && (
+                <tr className="bg-[#003087]/5 border-t border-[#003087]/20 font-bold">
+                  <td className="px-3 py-2 text-[#001A57] font-bold sticky left-0 bg-[#003087]/5">TOTALS</td>
+                  {team.totals.map((tot, i) => (
+                    <td key={i} className="text-center px-2 py-2 text-[#001A57] tabular-nums">{tot}</td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StatRow({ label, duke, opp }: { label: string; duke: string; opp: string }) {
   return (
@@ -257,6 +348,16 @@ export default function LivePage() {
       <div className="bg-white rounded-xl p-4 shadow-sm">
         <PlayByPlayFeed plays={liveGame.recentPlays || []} />
       </div>
+
+      {/* Box score */}
+      {liveGame.boxScore && liveGame.boxScore.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">Box Score</h2>
+          {liveGame.boxScore.map((team) => (
+            <BoxScoreTable key={team.teamId} team={team} />
+          ))}
+        </div>
+      )}
 
       {/* Auto-refresh notice */}
       <p className="text-center text-xs text-gray-400">

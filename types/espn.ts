@@ -205,6 +205,27 @@ export interface NormalizedTeamStats {
   topg: string;
 }
 
+export interface LiveBoxScorePlayer {
+  id: string;
+  name: string;
+  jersey: string;
+  photo: string;
+  position: string;
+  starter: boolean;
+  didNotPlay: boolean;
+  stats: string[];
+}
+
+export interface LiveBoxScoreTeam {
+  teamName: string;
+  teamId: string;
+  teamLogo: string;
+  isDuke: boolean;
+  columns: string[];
+  players: LiveBoxScorePlayer[];
+  totals: string[];
+}
+
 export interface LiveGameData {
   gameId: string;
   status: "pre" | "in" | "post";
@@ -222,4 +243,5 @@ export interface LiveGameData {
   dukeStats: Record<string, string>;
   opponentStats: Record<string, string>;
   recentPlays: EspnPlay[];
+  boxScore?: LiveBoxScoreTeam[];
 }

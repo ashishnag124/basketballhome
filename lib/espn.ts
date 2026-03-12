@@ -149,6 +149,29 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
 
     const recentPlays = (data.plays || []).slice(-15).reverse();
 
+    const boxScore = (data.boxscore?.players || []).map((teamData) => {
+      const isDuke = teamData.team.id === DUKE_ID;
+      const statTable = teamData.statistics?.[0];
+      return {
+        teamName: teamData.team.displayName,
+        teamId: teamData.team.id,
+        teamLogo: teamData.team.logo || `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamData.team.id}.png`,
+        isDuke,
+        columns: statTable?.names || [],
+        totals: statTable?.totals || [],
+        players: (statTable?.athletes || []).map((entry) => ({
+          id: String(entry.athlete?.id || ""),
+          name: entry.athlete?.displayName || "",
+          jersey: entry.athlete?.jersey || "",
+          photo: entry.athlete?.headshot?.href || "",
+          position: entry.athlete?.position?.abbreviation || "",
+          starter: entry.starter ?? false,
+          didNotPlay: entry.didNotPlay ?? false,
+          stats: entry.stats || [],
+        })),
+      };
+    });
+
     return {
       gameId,
       status: comp.status.type.state,
@@ -166,6 +189,7 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
       dukeStats: dukeTeamStats,
       opponentStats: oppTeamStats,
       recentPlays,
+      boxScore,
     };
   } catch {
     return null;
