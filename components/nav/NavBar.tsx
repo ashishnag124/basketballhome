@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import type { TeamConfig } from "@/lib/team-config";
 
 interface NavItem {
   href: string;
@@ -19,7 +20,7 @@ const navItems: NavItem[] = [
   { href: "/tournament", label: "Tournament", icon: "🏆" },
 ];
 
-export default function NavBar({ isLive = false }: { isLive?: boolean }) {
+export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolean; teamConfig: TeamConfig }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -34,12 +35,12 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
     <>
       {/* Desktop top nav */}
       <nav
-        className={`hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-[#003087] text-white transition-shadow ${
+        className={`hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-[var(--color-primary)] text-white transition-shadow ${
           scrolled ? "shadow-lg" : ""
         }`}
       >
         <Link href="/" className="flex items-center gap-2 font-['Oswald',sans-serif] text-xl font-bold tracking-wide">
-          <span className="text-[#B5A36A]">DUKE</span>
+          <span className="text-[var(--color-accent)]">{teamConfig.shortName.toUpperCase()}</span>
           <span>BASKETBALL</span>
         </Link>
         <div className="flex items-center gap-1">
@@ -66,9 +67,9 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
       </nav>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[#003087] text-white shadow-md">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-[var(--color-primary)] text-white shadow-md">
         <Link href="/" className="font-['Oswald',sans-serif] text-lg font-bold">
-          <span className="text-[#B5A36A]">DUKE</span>{" "}
+          <span className="text-[var(--color-accent)]">{teamConfig.shortName.toUpperCase()}</span>{" "}
           <span>BASKETBALL</span>
         </Link>
         <button
@@ -86,7 +87,7 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className="md:hidden fixed top-14 left-0 right-0 z-40 bg-[#001A57] text-white shadow-xl">
+        <div className="md:hidden fixed top-14 left-0 right-0 z-40 bg-[var(--color-secondary)] text-white shadow-xl">
           {navItems.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
@@ -95,7 +96,7 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
                 className={`flex items-center gap-3 px-5 py-4 text-sm font-medium border-b border-white/10 ${
-                  active ? "bg-white/10 text-[#B5A36A]" : "text-white/80 hover:bg-white/5"
+                  active ? "bg-white/10 text-[var(--color-accent)]" : "text-white/80 hover:bg-white/5"
                 }`}
               >
                 <span>{item.icon}</span>
@@ -113,7 +114,7 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
       )}
 
       {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#003087] text-white border-t border-white/10 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-primary)] text-white border-t border-white/10 pb-safe">
         <div className="flex">
           {navItems.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -122,7 +123,7 @@ export default function NavBar({ isLive = false }: { isLive?: boolean }) {
                 key={item.href}
                 href={item.href}
                 className={`relative flex-1 flex flex-col items-center py-2 text-xs transition-colors ${
-                  active ? "text-[#B5A36A]" : "text-white/60"
+                  active ? "text-[var(--color-accent)]" : "text-white/60"
                 }`}
               >
                 <span className="text-lg leading-none">{item.icon}</span>

@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
 import { fetchRoster, fetchPlayerGameLog, fetchAthleteBasicInfo } from "@/lib/espn";
 import { notFound } from "next/navigation";
 
@@ -7,16 +9,18 @@ export const revalidate = 900;
 
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const cookieStore = await cookies();
+  const tc = getTeamConfig(cookieStore.get(TEAM_COOKIE)?.value);
 
   const [roster, gameLog] = await Promise.allSettled([
-    fetchRoster(),
-    fetchPlayerGameLog(id),
+    fetchRoster(tc.id),
+    fetchPlayerGameLog(id, tc.id),
   ]);
 
   const players = roster.status === "fulfilled" ? roster.value : [];
   let player = players.find((p) => p.id === id) ?? null;
 
-  // For non-Duke players (e.g. linked from the pregame page), fall back to ESPN athlete endpoint
+  // For non-tracked-team players (e.g. linked from the pregame page), fall back to ESPN athlete endpoint
   if (!player) {
     player = await fetchAthleteBasicInfo(id);
   }
@@ -27,22 +31,22 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <Link href="/roster" className="inline-flex items-center gap-1 text-sm text-[#003087] font-medium">
+      <Link href="/roster" className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] font-medium">
         ← Back to Roster
       </Link>
 
       {/* Player header */}
-      <div className="bg-[#003087] rounded-2xl overflow-hidden">
+      <div className="bg-[var(--color-primary)] rounded-2xl overflow-hidden">
         <div className="flex items-end gap-5 px-5 pt-5 pb-0">
           <div className="relative w-28 h-36 shrink-0">
             {player.photo ? (
               <Image src={player.photo} alt={player.name} fill className="object-cover object-top rounded-t-xl" unoptimized />
             ) : (
-              <div className="w-full h-full bg-[#001A57] rounded-t-xl flex items-center justify-center text-5xl">👤</div>
+              <div className="w-full h-full bg-[var(--color-secondary)] rounded-t-xl flex items-center justify-center text-5xl">👤</div>
             )}
           </div>
           <div className="pb-4 flex-1">
-            <div className="text-[#B5A36A] text-xs font-bold uppercase tracking-widest mb-1">
+            <div className="text-[var(--color-accent)] text-xs font-bold uppercase tracking-widest mb-1">
               #{player.jersey} · {player.positionFull}
             </div>
             <h1 className="text-white text-2xl font-bold font-['Oswald',sans-serif] leading-tight">
@@ -63,7 +67,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
             { label: "FG%", value: player.fgp },
           ].map((s) => (
             <div key={s.label} className="text-center py-3">
-              <div className="text-[#B5A36A] font-bold font-['Oswald',sans-serif] text-xl">{s.value}</div>
+              <div className="text-[var(--color-accent)] font-bold font-['Oswald',sans-serif] text-xl">{s.value}</div>
               <div className="text-white/50 text-xs uppercase tracking-wide">{s.label}</div>
             </div>
           ))}
@@ -96,7 +100,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                     return (
                       <tr key={game.gameId} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="px-3 py-2 sticky left-0 bg-white">
-                          <Link href={`/game/${game.gameId}`} className="flex items-center gap-2 hover:text-[#003087]">
+                          <Link href={`/game/${game.gameId}`} className="flex items-center gap-2 hover:text-[var(--color-primary)]">
                             {game.opponentLogo ? (
                               <Image src={game.opponentLogo} alt={game.opponent} width={20} height={20} className="object-contain shrink-0" unoptimized />
                             ) : (
@@ -117,7 +121,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                           <div className="text-gray-400 text-[10px] mt-0.5">{game.score}</div>
                         </td>
                         {game.stats.map((stat, i) => (
-                          <td key={i} className={`text-center px-2 py-2 tabular-nums ${i === ptsIdx ? "font-bold text-[#003087]" : "text-gray-700"}`}>
+                          <td key={i} className={`text-center px-2 py-2 tabular-nums ${i === ptsIdx ? "font-bold text-[var(--color-primary)]" : "text-gray-700"}`}>
                             {stat}
                           </td>
                         ))}
@@ -127,10 +131,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
                 </tbody>
                 {/* Season totals row */}
                 <tfoot>
-                  <tr className="bg-[#003087]/5 border-t border-[#003087]/20 font-bold">
-                    <td className="px-3 py-2 text-[#001A57] font-bold sticky left-0 bg-[#003087]/5" colSpan={2}>SEASON TOTALS</td>
+                  <tr className="bg-[var(--color-primary)]/5 border-t border-[var(--color-primary)]/20 font-bold">
+                    <td className="px-3 py-2 text-[var(--color-secondary)] font-bold sticky left-0 bg-[var(--color-primary)]/5" colSpan={2}>SEASON TOTALS</td>
                     {log.totals.map((tot, i) => (
-                      <td key={i} className="text-center px-2 py-2 text-[#001A57] tabular-nums">{tot}</td>
+                      <td key={i} className="text-center px-2 py-2 text-[var(--color-secondary)] tabular-nums">{tot}</td>
                     ))}
                   </tr>
                 </tfoot>
