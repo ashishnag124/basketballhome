@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { getTeamConfig, TEAM_COOKIE } from "@/lib/team-config";
 import {
   fetchSchedule,
   fetchTeamStats,
@@ -9,30 +11,30 @@ import {
   fetchOpponentRoster,
 } from "@/lib/espn";
 import { formatDateTime } from "@/lib/utils";
-import type { NormalizedPlayer, NormalizedTeamStats } from "@/types/espn";
+import type { NormalizedPlayer } from "@/types/espn";
 
 export const revalidate = 300;
 
 function StatCompareRow({
   label,
-  duke,
+  our,
   opp,
   higherIsBetter = true,
 }: {
   label: string;
-  duke: string;
+  our: string;
   opp: string;
   higherIsBetter?: boolean;
 }) {
-  const dukeNum = parseFloat(duke);
+  const ourNum = parseFloat(our);
   const oppNum = parseFloat(opp);
-  const dukeWins = !isNaN(dukeNum) && !isNaN(oppNum) && (higherIsBetter ? dukeNum > oppNum : dukeNum < oppNum);
-  const oppWins = !isNaN(dukeNum) && !isNaN(oppNum) && (higherIsBetter ? oppNum > dukeNum : oppNum < dukeNum);
+  const ourWins = !isNaN(ourNum) && !isNaN(oppNum) && (higherIsBetter ? ourNum > oppNum : ourNum < oppNum);
+  const oppWins = !isNaN(ourNum) && !isNaN(oppNum) && (higherIsBetter ? oppNum > ourNum : oppNum < ourNum);
 
   return (
     <div className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
-      <div className={`flex-1 text-right text-sm font-bold ${dukeWins ? "text-[#003087]" : "text-gray-500"}`}>
-        {duke}
+      <div className={`flex-1 text-right text-sm font-bold ${ourWins ? "text-[var(--color-primary)]" : "text-gray-500"}`}>
+        {our}
       </div>
       <div className="w-28 text-center text-xs text-gray-400 uppercase tracking-wide shrink-0">{label}</div>
       <div className={`flex-1 text-left text-sm font-bold ${oppWins ? "text-gray-800" : "text-gray-400"}`}>
@@ -61,7 +63,7 @@ function PlayerColumn({ player }: { player: NormalizedPlayer }) {
         <div className="text-[10px] text-gray-400">{player.position} · #{player.jersey}</div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-xs font-bold text-[#003087]">{player.ppg}</div>
+        <div className="text-xs font-bold text-[var(--color-primary)]">{player.ppg}</div>
         <div className="text-[10px] text-gray-400">PPG</div>
       </div>
     </Link>
@@ -70,11 +72,13 @@ function PlayerColumn({ player }: { player: NormalizedPlayer }) {
 
 export default async function PregamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const cookieStore = await cookies();
+  const tc = getTeamConfig(cookieStore.get(TEAM_COOKIE)?.value);
 
-  const [games, dukeStats, dukeRoster] = await Promise.all([
-    fetchSchedule(),
-    fetchTeamStats(),
-    fetchRoster(),
+  const [games, ourStats, ourRoster] = await Promise.all([
+    fetchSchedule(tc.id),
+    fetchTeamStats(tc.id),
+    fetchRoster(tc.id),
   ]);
 
   const game = games.find((g) => g.id === id);
@@ -82,13 +86,13 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
   if (game.status === "post") redirect(`/game/${id}`);
 
   const [pregame, oppRoster] = await Promise.all([
-    fetchPregameData(id, game.opponentId),
+    fetchPregameData(id, game.opponentId, tc.id),
     game.opponentId ? fetchOpponentRoster(game.opponentId) : Promise.resolve([]),
   ]);
 
   const { odds, winProbability, opponentStats } = pregame;
 
-  const dukeKey = dukeRoster
+  const ourKey = ourRoster
     .filter((p) => p.ppg !== "-")
     .sort((a, b) => parseFloat(b.ppg) - parseFloat(a.ppg))
     .slice(0, 5);
@@ -98,56 +102,56 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
     .sort((a, b) => parseFloat(b.ppg) - parseFloat(a.ppg))
     .slice(0, 5);
 
-  const compareStats: Array<{ label: string; duke: string; opp: string; higherIsBetter?: boolean }> = [
-    { label: "Record", duke: dukeStats?.record || "—", opp: opponentStats?.record || "—" },
-    { label: "PPG", duke: dukeStats?.ppg || "—", opp: opponentStats?.ppg || "—" },
-    { label: "Opp PPG", duke: dukeStats?.oppPpg || "—", opp: opponentStats?.oppPpg || "—", higherIsBetter: false },
-    { label: "FG%", duke: dukeStats?.fgp || "—", opp: opponentStats?.fgp || "—" },
-    { label: "3PT%", duke: dukeStats?.threePtp || "—", opp: opponentStats?.threePtp || "—" },
-    { label: "RPG", duke: dukeStats?.rpg || "—", opp: opponentStats?.rpg || "—" },
-    { label: "APG", duke: dukeStats?.apg || "—", opp: opponentStats?.apg || "—" },
-    { label: "SPG", duke: dukeStats?.spg || "—", opp: opponentStats?.spg || "—" },
-    { label: "TOV/G", duke: dukeStats?.topg || "—", opp: opponentStats?.topg || "—", higherIsBetter: false },
+  const compareStats: Array<{ label: string; our: string; opp: string; higherIsBetter?: boolean }> = [
+    { label: "Record", our: ourStats?.record || "—", opp: opponentStats?.record || "—" },
+    { label: "PPG", our: ourStats?.ppg || "—", opp: opponentStats?.ppg || "—" },
+    { label: "Opp PPG", our: ourStats?.oppPpg || "—", opp: opponentStats?.oppPpg || "—", higherIsBetter: false },
+    { label: "FG%", our: ourStats?.fgp || "—", opp: opponentStats?.fgp || "—" },
+    { label: "3PT%", our: ourStats?.threePtp || "—", opp: opponentStats?.threePtp || "—" },
+    { label: "RPG", our: ourStats?.rpg || "—", opp: opponentStats?.rpg || "—" },
+    { label: "APG", our: ourStats?.apg || "—", opp: opponentStats?.apg || "—" },
+    { label: "SPG", our: ourStats?.spg || "—", opp: opponentStats?.spg || "—" },
+    { label: "TOV/G", our: ourStats?.topg || "—", opp: opponentStats?.topg || "—", higherIsBetter: false },
   ];
 
-  const dukeChancePct = winProbability?.dukeChance ?? null;
+  const ourChancePct = winProbability?.dukeChance ?? null;
   const oppChancePct = winProbability?.oppChance ?? null;
 
   return (
     <div className="space-y-5">
       {/* Back link */}
-      <Link href="/" className="inline-flex items-center gap-1 text-sm text-[#003087] font-medium">
+      <Link href="/" className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] font-medium">
         ← Back to Home
       </Link>
 
       {/* Game header */}
-      <div className="bg-gradient-to-br from-[#003087] to-[#001A57] rounded-2xl p-5 text-white">
-        <div className="text-[#B5A36A] text-xs font-bold uppercase tracking-widest mb-4 text-center">
+      <div className="bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] rounded-2xl p-5 text-white">
+        <div className="text-[var(--color-accent)] text-xs font-bold uppercase tracking-widest mb-4 text-center">
           {game.notes || "Game Preview"}
         </div>
 
         {/* Teams */}
         <div className="flex items-center justify-between gap-3 mb-4">
-          {/* Duke */}
+          {/* Our team */}
           <div className="flex-1 text-center">
             <Image
-              src="https://a.espncdn.com/i/teamlogos/ncaa/500/150.png"
-              alt="Duke"
+              src={tc.logo}
+              alt={tc.shortName}
               width={52}
               height={52}
               className="mx-auto mb-2"
               unoptimized
             />
-            <div className="text-sm font-bold font-['Oswald',sans-serif]">Duke</div>
-            {dukeStats && (
-              <div className="text-xs text-white/60">{dukeStats.record}</div>
+            <div className="text-sm font-bold font-['Oswald',sans-serif]">{tc.shortName}</div>
+            {ourStats && (
+              <div className="text-xs text-white/60">{ourStats.record}</div>
             )}
           </div>
 
           <div className="text-center shrink-0">
             <div className="text-white/40 text-2xl font-light">VS</div>
             <div className={`mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-              game.isHome ? "bg-[#B5A36A]/20 text-[#B5A36A]" : "bg-white/10 text-white/60"
+              game.isHome ? "bg-[var(--color-accent)]/20 text-[var(--color-accent)]" : "bg-white/10 text-white/60"
             }`}>
               {game.isHome ? "HOME" : "AWAY"}
             </div>
@@ -190,17 +194,17 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Win Probability */}
-      {dukeChancePct !== null && oppChancePct !== null && (
+      {ourChancePct !== null && oppChancePct !== null && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Win Probability</h2>
           <div className="flex items-center justify-between text-xs font-bold mb-2">
-            <span className="text-[#003087]">Duke {dukeChancePct}%</span>
+            <span className="text-[var(--color-primary)]">{tc.shortName} {ourChancePct}%</span>
             <span className="text-gray-500">{game.opponent} {oppChancePct}%</span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden flex">
             <div
-              className="bg-[#003087] h-full rounded-l-full transition-all"
-              style={{ width: `${dukeChancePct}%` }}
+              className="bg-[var(--color-primary)] h-full rounded-l-full transition-all"
+              style={{ width: `${ourChancePct}%` }}
             />
             <div
               className="bg-gray-300 h-full rounded-r-full flex-1"
@@ -220,16 +224,16 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
               return (
                 <div className="grid grid-cols-3 gap-3">
                   <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center group">
-                    <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.spread}</div>
+                    <div className="text-lg font-bold text-[var(--color-primary)] group-hover:underline font-['Oswald',sans-serif]">{odds.spread}</div>
                     <div className="text-xs text-gray-400 uppercase tracking-wide">Spread</div>
                   </a>
                   <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center border-x border-gray-100 group">
-                    <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.overUnder}</div>
+                    <div className="text-lg font-bold text-[var(--color-primary)] group-hover:underline font-['Oswald',sans-serif]">{odds.overUnder}</div>
                     <div className="text-xs text-gray-400 uppercase tracking-wide">Over/Under</div>
                   </a>
                   <a href={betUrl} target="_blank" rel="noopener noreferrer" className="text-center group">
-                    <div className="text-sm font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif] leading-tight">
-                      <div>Duke {odds[game.isHome ? "homeMoneyline" : "awayMoneyline"]}</div>
+                    <div className="text-sm font-bold text-[var(--color-primary)] group-hover:underline font-['Oswald',sans-serif] leading-tight">
+                      <div>{tc.shortName} {odds[game.isHome ? "homeMoneyline" : "awayMoneyline"]}</div>
                       <div className="text-gray-400">{game.opponent.split(" ").slice(-1)[0]} {odds[game.isHome ? "awayMoneyline" : "homeMoneyline"]}</div>
                     </div>
                     <div className="text-xs text-gray-400 uppercase tracking-wide">Moneyline</div>
@@ -250,7 +254,7 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
         {/* Column headers */}
         <div className="flex items-center gap-2 py-2 mb-1">
           <div className="flex-1 text-right">
-            <span className="text-xs font-bold text-[#003087] uppercase">Duke</span>
+            <span className="text-xs font-bold text-[var(--color-primary)] uppercase">{tc.shortName}</span>
           </div>
           <div className="w-28 shrink-0" />
           <div className="flex-1 text-left">
@@ -261,7 +265,7 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
           <StatCompareRow
             key={row.label}
             label={row.label}
-            duke={row.duke}
+            our={row.our}
             opp={row.opp}
             higherIsBetter={row.higherIsBetter}
           />
@@ -269,23 +273,23 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Key Players */}
-      {(dukeKey.length > 0 || oppKey.length > 0) && (
+      {(ourKey.length > 0 || oppKey.length > 0) && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Key Players</h2>
           <div className="grid grid-cols-2 gap-4">
-            {/* Duke column */}
+            {/* Our team column */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <Image
-                  src="https://a.espncdn.com/i/teamlogos/ncaa/500/150.png"
-                  alt="Duke"
+                  src={tc.logo}
+                  alt={tc.shortName}
                   width={16}
                   height={16}
                   unoptimized
                 />
-                <span className="text-xs font-bold text-[#003087] uppercase">Duke</span>
+                <span className="text-xs font-bold text-[var(--color-primary)] uppercase">{tc.shortName}</span>
               </div>
-              {dukeKey.map((p) => <PlayerColumn key={p.id} player={p} />)}
+              {ourKey.map((p) => <PlayerColumn key={p.id} player={p} />)}
             </div>
             {/* Opponent column */}
             <div>
@@ -315,7 +319,7 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
 
       {/* Schedule link */}
       <div className="text-center">
-        <Link href="/schedule" className="text-sm text-[#003087] font-medium hover:underline">
+        <Link href="/schedule" className="text-sm text-[var(--color-primary)] font-medium hover:underline">
           View full schedule →
         </Link>
       </div>

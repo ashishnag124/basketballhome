@@ -14,8 +14,7 @@ import { formatHeight } from "./utils";
 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball";
 const WEB_BASE = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/mens-college-basketball";
-const DUKE_ID = "150";
-const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; DukeBasketballApp/1.0)" };
+const HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; BasketballTrackerApp/1.0)" };
 
 async function espnFetch<T>(url: string, cacheKey: string, ttlMs: number): Promise<T> {
   const cached = getCached<T>(cacheKey);
@@ -28,23 +27,23 @@ async function espnFetch<T>(url: string, cacheKey: string, ttlMs: number): Promi
   return data as T;
 }
 
-export async function fetchRawSchedule(): Promise<EspnScheduleResponse> {
+export async function fetchRawSchedule(teamId: string): Promise<EspnScheduleResponse> {
   return espnFetch<EspnScheduleResponse>(
-    `${BASE}/teams/${DUKE_ID}/schedule`,
-    "schedule",
+    `${BASE}/teams/${teamId}/schedule`,
+    `schedule:${teamId}`,
     10 * 60 * 1000
   );
 }
 
-export async function fetchSchedule(): Promise<NormalizedGame[]> {
-  const data = await fetchRawSchedule();
-  return (data.events || []).map(normalizeGame);
+export async function fetchSchedule(teamId: string): Promise<NormalizedGame[]> {
+  const data = await fetchRawSchedule(teamId);
+  return (data.events || []).map((e) => normalizeGame(e, teamId));
 }
 
-export async function fetchRawRoster(): Promise<EspnRosterResponse> {
+export async function fetchRawRoster(teamId: string): Promise<EspnRosterResponse> {
   return espnFetch<EspnRosterResponse>(
-    `${BASE}/teams/${DUKE_ID}/roster`,
-    "roster",
+    `${BASE}/teams/${teamId}/roster`,
+    `roster:${teamId}`,
     60 * 60 * 1000
   );
 }
@@ -70,11 +69,10 @@ async function fetchAthleteStats(athleteId: string): Promise<{ ppg: string; rpg:
   }
 }
 
-export async function fetchRoster(): Promise<NormalizedPlayer[]> {
-  const data = await fetchRawRoster();
+export async function fetchRoster(teamId: string): Promise<NormalizedPlayer[]> {
+  const data = await fetchRawRoster(teamId);
   const athletes = data.athletes || [];
 
-  // Fetch stats for all players in parallel
   const statsArr = await Promise.all(athletes.map((a) => fetchAthleteStats(a.id)));
 
   return athletes.map((athlete, i) => ({
@@ -103,14 +101,14 @@ export async function fetchRawScoreboard(): Promise<EspnScoreboardResponse> {
   );
 }
 
-export async function findDukeGame(): Promise<NormalizedGame | null> {
+export async function findTeamGame(teamId: string): Promise<NormalizedGame | null> {
   try {
     const data = await fetchRawScoreboard();
     for (const event of data.events || []) {
       const comp = event.competitions?.[0];
       if (!comp) continue;
-      const hasDuke = comp.competitors.some((c) => c.team.id === DUKE_ID);
-      if (hasDuke) return normalizeGame(event);
+      const hasTeam = comp.competitors.some((c) => c.team.id === teamId);
+      if (hasTeam) return normalizeGame(event, teamId);
     }
     return null;
   } catch {
@@ -118,7 +116,7 @@ export async function findDukeGame(): Promise<NormalizedGame | null> {
   }
 }
 
-export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | null> {
+export async function fetchLiveGameData(gameId: string, teamId: string): Promise<LiveGameData | null> {
   try {
     const data = await espnFetch<EspnGameSummaryResponse>(
       `${BASE}/summary?event=${gameId}`,
@@ -129,19 +127,19 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
     const comp = data.header?.competitions?.[0];
     if (!comp) return null;
 
-    const dukeComp = comp.competitors.find((c) => c.team.id === DUKE_ID);
-    const oppComp = comp.competitors.find((c) => c.team.id !== DUKE_ID);
-    if (!dukeComp || !oppComp) return null;
+    const ourComp = comp.competitors.find((c) => c.team.id === teamId);
+    const oppComp = comp.competitors.find((c) => c.team.id !== teamId);
+    if (!ourComp || !oppComp) return null;
 
-    const dukeTeamStats: Record<string, string> = {};
+    const ourTeamStats: Record<string, string> = {};
     const oppTeamStats: Record<string, string> = {};
 
     for (const team of data.boxscore?.teams || []) {
       const statsMap = Object.fromEntries(
         team.statistics.map((s) => [s.name, s.displayValue])
       );
-      if (team.team.id === DUKE_ID) {
-        Object.assign(dukeTeamStats, statsMap);
+      if (team.team.id === teamId) {
+        Object.assign(ourTeamStats, statsMap);
       } else {
         Object.assign(oppTeamStats, statsMap);
       }
@@ -150,13 +148,13 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
     const recentPlays = (data.plays || []).slice(-15).reverse();
 
     const boxScore = (data.boxscore?.players || []).map((teamData) => {
-      const isDuke = teamData.team.id === DUKE_ID;
+      const isOurTeam = teamData.team.id === teamId;
       const statTable = teamData.statistics?.[0];
       return {
         teamName: teamData.team.displayName,
         teamId: teamData.team.id,
         teamLogo: teamData.team.logo || `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamData.team.id}.png`,
-        isDuke,
+        isDuke: isOurTeam,
         columns: statTable?.names || [],
         totals: statTable?.totals || [],
         players: (statTable?.athletes || []).map((entry) => ({
@@ -178,15 +176,15 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
       period: comp.status.period,
       clock: comp.status.displayClock,
       statusText: comp.status.type.shortDetail,
-      dukeScore: dukeComp.score || "0",
+      dukeScore: ourComp.score || "0",
       opponentScore: oppComp.score || "0",
       opponent: oppComp.team.displayName,
       opponentLogo: oppComp.team.logo,
-      isHome: dukeComp.homeAway === "home",
+      isHome: ourComp.homeAway === "home",
       venue: "",
       broadcastInfo: "",
       lastPlay: recentPlays[0]?.text || "",
-      dukeStats: dukeTeamStats,
+      dukeStats: ourTeamStats,
       opponentStats: oppTeamStats,
       recentPlays,
       boxScore,
@@ -196,17 +194,17 @@ export async function fetchLiveGameData(gameId: string): Promise<LiveGameData | 
   }
 }
 
-export async function fetchTeamStats(): Promise<NormalizedTeamStats | null> {
+export async function fetchTeamStats(teamId: string): Promise<NormalizedTeamStats | null> {
   try {
     const [recordData, statsData] = await Promise.all([
       espnFetch<{ team: { record: { items: Array<{ summary: string; stats: Array<{ name: string; value: number }> }> } } }>(
-        `${BASE}/teams/${DUKE_ID}?enable=roster,projection,stats`,
-        "teamdetail",
+        `${BASE}/teams/${teamId}?enable=roster,projection,stats`,
+        `teamdetail:${teamId}`,
         15 * 60 * 1000
       ),
       espnFetch<{ results: { stats: { categories: Array<{ name: string; stats: Array<{ name: string; displayValue: string; value: number }> }> } } }>(
-        `${BASE}/teams/${DUKE_ID}/statistics`,
-        "teamstats",
+        `${BASE}/teams/${teamId}/statistics`,
+        `teamstats:${teamId}`,
         15 * 60 * 1000
       ),
     ]);
@@ -215,15 +213,12 @@ export async function fetchTeamStats(): Promise<NormalizedTeamStats | null> {
     if (!record) return null;
     const recStats = Object.fromEntries(record.stats.map((s) => [s.name, s.value]));
 
-    // Flatten all stat categories into one map
     const allStats: Record<string, string> = {};
     for (const cat of statsData.results?.stats?.categories || []) {
       for (const s of cat.stats || []) {
         allStats[s.name] = s.displayValue;
       }
     }
-
-    const n = (key: string) => parseFloat(allStats[key] || "0");
 
     return {
       record: record.summary,
@@ -245,9 +240,9 @@ export async function fetchTeamStats(): Promise<NormalizedTeamStats | null> {
   }
 }
 
-export async function fetchNextGame(): Promise<NormalizedGame | null> {
+export async function fetchNextGame(teamId: string): Promise<NormalizedGame | null> {
   try {
-    const games = await fetchSchedule();
+    const games = await fetchSchedule(teamId);
     return games.find((g) => g.status === "pre") || null;
   } catch {
     return null;
@@ -266,7 +261,7 @@ function espnStr(v: any): string {
   return String(v);
 }
 
-export async function fetchGameBoxScore(gameId: string): Promise<{
+export async function fetchGameBoxScore(gameId: string, teamId: string): Promise<{
   gameId: string;
   date: string;
   status: string;
@@ -306,13 +301,12 @@ export async function fetchGameBoxScore(gameId: string): Promise<{
     const comp = data.header?.competitions?.[0];
     if (!comp) return null;
 
-    const dukeComp = comp.competitors.find((c) => c.team.id === DUKE_ID);
-    const oppComp = comp.competitors.find((c) => c.team.id !== DUKE_ID);
-    if (!dukeComp || !oppComp) return null;
+    const ourComp = comp.competitors.find((c) => c.team.id === teamId);
+    const oppComp = comp.competitors.find((c) => c.team.id !== teamId);
+    if (!ourComp || !oppComp) return null;
 
     const teams = (data.boxscore?.players || []).map((teamData) => {
-      const isDuke = teamData.team.id === DUKE_ID;
-      // statistics is an array with one entry that has names + athletes
+      const isDuke = teamData.team.id === teamId;
       const statTable = teamData.statistics?.[0];
       const columns: string[] = statTable?.names || [];
       const totals: string[] = statTable?.totals || [];
@@ -344,11 +338,11 @@ export async function fetchGameBoxScore(gameId: string): Promise<{
       date: comp.date || "",
       status: comp.status.type.state,
       statusText: comp.status.type.shortDetail || "",
-      dukeScore: espnStr(dukeComp.score) || "0",
+      dukeScore: espnStr(ourComp.score) || "0",
       opponentScore: espnStr(oppComp.score) || "0",
       opponent: espnStr(oppComp.team.displayName),
       opponentLogo: espnStr(oppComp.team.logo) || `https://a.espncdn.com/i/teamlogos/ncaa/500/${oppComp.team.id}.png`,
-      isHome: dukeComp.homeAway === "home",
+      isHome: ourComp.homeAway === "home",
       venue: espnStr(comp.venue?.fullName) || "",
       teams,
     };
@@ -357,7 +351,7 @@ export async function fetchGameBoxScore(gameId: string): Promise<{
   }
 }
 
-export async function fetchPlayerGameLog(playerId: string): Promise<{
+export async function fetchPlayerGameLog(playerId: string, teamId: string): Promise<{
   columns: string[];
   totals: string[];
   games: Array<{
@@ -404,7 +398,7 @@ export async function fetchPlayerGameLog(playerId: string): Promise<{
       .map((se) => {
         const meta = eventsMeta[se.eventId];
         if (!meta) return null;
-        const isHome = meta.homeTeamId === DUKE_ID;
+        const isHome = meta.homeTeamId === teamId;
         return {
           gameId: se.eventId,
           date: meta.gameDate,
@@ -538,7 +532,7 @@ export async function fetchOpponentStats(teamId: string): Promise<NormalizedTeam
   }
 }
 
-export async function fetchPregameData(gameId: string, opponentId: string): Promise<{
+export async function fetchPregameData(gameId: string, opponentId: string, teamId: string): Promise<{
   odds: { spread: string; overUnder: string; homeMoneyline: string; awayMoneyline: string; provider: string } | null;
   winProbability: { dukeChance: number; oppChance: number; oppName: string; dukeName: string } | null;
   opponentStats: NormalizedTeamStats | null;
@@ -560,21 +554,20 @@ export async function fetchPregameData(gameId: string, opponentId: string): Prom
   if (summaryResult.status === "fulfilled") {
     const summary = summaryResult.value;
 
-    // Extract odds from pickcenter
     const pick = summary.pickcenter?.[0];
     if (pick) {
       const comp = summary.header?.competitions?.[0];
-      const dukeComp = comp?.competitors.find((c) => c.team.id === DUKE_ID);
-      const oppComp = comp?.competitors.find((c) => c.team.id !== DUKE_ID);
-      const dukeIsHome = dukeComp?.homeAway === "home";
-      const dukeOdds = dukeIsHome ? pick.homeTeamOdds : pick.awayTeamOdds;
-      const oppOdds = dukeIsHome ? pick.awayTeamOdds : pick.homeTeamOdds;
-      const homeMoneyline = dukeIsHome
-        ? (dukeOdds?.moneyLine != null ? (dukeOdds.moneyLine > 0 ? `+${dukeOdds.moneyLine}` : String(dukeOdds.moneyLine)) : "N/A")
+      const ourComp = comp?.competitors.find((c) => c.team.id === teamId);
+      const oppComp = comp?.competitors.find((c) => c.team.id !== teamId);
+      const ourIsHome = ourComp?.homeAway === "home";
+      const ourOdds = ourIsHome ? pick.homeTeamOdds : pick.awayTeamOdds;
+      const oppOdds = ourIsHome ? pick.awayTeamOdds : pick.homeTeamOdds;
+      const homeMoneyline = ourIsHome
+        ? (ourOdds?.moneyLine != null ? (ourOdds.moneyLine > 0 ? `+${ourOdds.moneyLine}` : String(ourOdds.moneyLine)) : "N/A")
         : (oppOdds?.moneyLine != null ? (oppOdds.moneyLine > 0 ? `+${oppOdds.moneyLine}` : String(oppOdds.moneyLine)) : "N/A");
-      const awayMoneyline = dukeIsHome
+      const awayMoneyline = ourIsHome
         ? (oppOdds?.moneyLine != null ? (oppOdds.moneyLine > 0 ? `+${oppOdds.moneyLine}` : String(oppOdds.moneyLine)) : "N/A")
-        : (dukeOdds?.moneyLine != null ? (dukeOdds.moneyLine > 0 ? `+${dukeOdds.moneyLine}` : String(dukeOdds.moneyLine)) : "N/A");
+        : (ourOdds?.moneyLine != null ? (ourOdds.moneyLine > 0 ? `+${ourOdds.moneyLine}` : String(ourOdds.moneyLine)) : "N/A");
       odds = {
         spread: pick.details || "N/A",
         overUnder: pick.overUnder != null ? String(pick.overUnder) : "N/A",
@@ -585,21 +578,20 @@ export async function fetchPregameData(gameId: string, opponentId: string): Prom
       void oppComp;
     }
 
-    // Extract win probability from predictor
     const predictor = summary.predictor;
     if (predictor?.homeTeam && predictor?.awayTeam) {
       const comp = summary.header?.competitions?.[0];
-      const dukeComp = comp?.competitors.find((c) => c.team.id === DUKE_ID);
-      const dukeIsHome = dukeComp?.homeAway === "home";
-      const dukeTeam = dukeIsHome ? predictor.homeTeam : predictor.awayTeam;
-      const oppTeam = dukeIsHome ? predictor.awayTeam : predictor.homeTeam;
-      const dukeChance = dukeTeam?.teamChanceWin ?? (100 - (oppTeam?.teamChanceWin ?? 50));
-      const oppChance = oppTeam?.teamChanceWin ?? (100 - dukeChance);
+      const ourComp = comp?.competitors.find((c) => c.team.id === teamId);
+      const ourIsHome = ourComp?.homeAway === "home";
+      const ourTeam = ourIsHome ? predictor.homeTeam : predictor.awayTeam;
+      const oppTeam = ourIsHome ? predictor.awayTeam : predictor.homeTeam;
+      const ourChance = ourTeam?.teamChanceWin ?? (100 - (oppTeam?.teamChanceWin ?? 50));
+      const oppChance = oppTeam?.teamChanceWin ?? (100 - ourChance);
       winProbability = {
-        dukeChance: Math.round(dukeChance),
+        dukeChance: Math.round(ourChance),
         oppChance: Math.round(oppChance),
         oppName: oppTeam?.name || "Opponent",
-        dukeName: "Duke",
+        dukeName: ourTeam?.name || "Our Team",
       };
     }
   }
@@ -612,7 +604,7 @@ export async function fetchPregameData(gameId: string, opponentId: string): Prom
 }
 
 // Normalize an ESPN event into our app's game shape
-function normalizeGame(event: import("@/types/espn").EspnGame): NormalizedGame {
+function normalizeGame(event: import("@/types/espn").EspnGame, teamId: string): NormalizedGame {
   const comp = event.competitions?.[0];
   if (!comp) {
     return {
@@ -633,22 +625,20 @@ function normalizeGame(event: import("@/types/espn").EspnGame): NormalizedGame {
     };
   }
 
-  const dukeComp = comp.competitors.find((c) => c.team.id === DUKE_ID);
-  const oppComp = comp.competitors.find((c) => c.team.id !== DUKE_ID);
+  const ourComp = comp.competitors.find((c) => c.team.id === teamId);
+  const oppComp = comp.competitors.find((c) => c.team.id !== teamId);
 
-  const dukeScore = dukeComp?.score ? espnStr(dukeComp.score) : null;
+  const ourScore = ourComp?.score ? espnStr(ourComp.score) : null;
   const oppScore = oppComp?.score ? espnStr(oppComp.score) : null;
   const isWin =
-    comp.status.type.state === "post" && dukeScore && oppScore
-      ? parseInt(dukeScore) > parseInt(oppScore)
+    comp.status.type.state === "post" && ourScore && oppScore
+      ? parseInt(ourScore) > parseInt(oppScore)
       : null;
 
-  // broadcasts[].names may be strings or objects
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const broadcastNames = comp.broadcasts?.[0]?.names?.map((n: any) => espnStr(n)) || [];
   const broadcasts = broadcastNames.join(", ");
 
-  // notes headline can be a string or {value, displayValue} object
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const notesHeadline = espnStr((comp.notes as any)?.[0]?.headline ?? "");
 
@@ -658,9 +648,9 @@ function normalizeGame(event: import("@/types/espn").EspnGame): NormalizedGame {
     opponent: espnStr(oppComp?.team?.displayName) || "TBD",
     opponentLogo: espnStr(oppComp?.team?.logo) || "",
     opponentId: espnStr(oppComp?.team?.id) || "",
-    isHome: dukeComp?.homeAway === "home",
+    isHome: ourComp?.homeAway === "home",
     venue: espnStr(comp.venue?.fullName) || "",
-    dukeScore,
+    dukeScore: ourScore,
     opponentScore: oppScore,
     status: comp.status.type.state,
     statusText: espnStr(comp.status.type.shortDetail),
