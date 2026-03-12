@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { fetchRoster, fetchPlayerGameLog } from "@/lib/espn";
+import { fetchRoster, fetchPlayerGameLog, fetchAthleteBasicInfo } from "@/lib/espn";
 import { notFound } from "next/navigation";
 
 export const revalidate = 900;
@@ -14,7 +14,12 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   ]);
 
   const players = roster.status === "fulfilled" ? roster.value : [];
-  const player = players.find((p) => p.id === id);
+  let player = players.find((p) => p.id === id) ?? null;
+
+  // For non-Duke players (e.g. linked from the pregame page), fall back to ESPN athlete endpoint
+  if (!player) {
+    player = await fetchAthleteBasicInfo(id);
+  }
   if (!player) notFound();
 
   const log = gameLog.status === "fulfilled" ? gameLog.value : null;

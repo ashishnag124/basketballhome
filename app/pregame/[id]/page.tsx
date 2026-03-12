@@ -44,7 +44,7 @@ function StatCompareRow({
 
 function PlayerColumn({ player }: { player: NormalizedPlayer }) {
   return (
-    <div className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+    <Link href={`/player/${player.id}`} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0 hover:bg-gray-50 -mx-1 px-1 rounded transition-colors">
       <div className="relative w-8 h-8 rounded-full overflow-hidden bg-gray-100 shrink-0">
         {player.photo ? (
           <Image src={player.photo} alt={player.name} fill className="object-cover object-top" unoptimized />
@@ -64,7 +64,7 @@ function PlayerColumn({ player }: { player: NormalizedPlayer }) {
         <div className="text-xs font-bold text-[#003087]">{player.ppg}</div>
         <div className="text-[10px] text-gray-400">PPG</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -216,23 +216,23 @@ export default async function PregamePage({ params }: { params: Promise<{ id: st
         {odds ? (
           <>
             <div className="grid grid-cols-3 gap-3">
-              <div className="text-center">
-                <div className="text-lg font-bold text-[#003087] font-['Oswald',sans-serif]">{odds.spread}</div>
+              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center group">
+                <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.spread}</div>
                 <div className="text-xs text-gray-400 uppercase tracking-wide">Spread</div>
-              </div>
-              <div className="text-center border-x border-gray-100">
-                <div className="text-lg font-bold text-[#003087] font-['Oswald',sans-serif]">{odds.overUnder}</div>
+              </a>
+              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center border-x border-gray-100 group">
+                <div className="text-lg font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif]">{odds.overUnder}</div>
                 <div className="text-xs text-gray-400 uppercase tracking-wide">Over/Under</div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-bold text-[#003087] font-['Oswald',sans-serif] leading-tight">
+              </a>
+              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="text-center group">
+                <div className="text-sm font-bold text-[#003087] group-hover:underline font-['Oswald',sans-serif] leading-tight">
                   <div>Duke {odds[game.isHome ? "homeMoneyline" : "awayMoneyline"]}</div>
                   <div className="text-gray-400">{game.opponent.split(" ").slice(-1)[0]} {odds[game.isHome ? "awayMoneyline" : "homeMoneyline"]}</div>
                 </div>
                 <div className="text-xs text-gray-400 uppercase tracking-wide">Moneyline</div>
-              </div>
+              </a>
             </div>
-            <p className="text-[10px] text-gray-400 mt-3 text-center">Source: {odds.provider} · Lines subject to change</p>
+            <p className="text-[10px] text-gray-400 mt-3 text-center">Source: {odds.provider} · Bet on <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="underline">Kalshi</a> · Lines subject to change</p>
           </>
         ) : (
           <p className="text-sm text-gray-400 text-center py-2">Odds not yet available for this game.</p>
