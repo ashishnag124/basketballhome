@@ -5,10 +5,30 @@ import type { TeamConfig } from "@/lib/team-config";
 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball";
 
+/**
+ * Build the correct public base URL regardless of deployment environment.
+ *
+ * In Railway (and other proxied deployments) `request.url` is the *internal*
+ * server URL (e.g. http://localhost:3000/...) rather than the public URL.
+ * The real host is forwarded via x-forwarded-host / x-forwarded-proto headers.
+ */
+function getPublicOrigin(request: Request): string {
+  const forwHost = request.headers.get("x-forwarded-host");
+  const forwProto = request.headers.get("x-forwarded-proto") ?? "https";
+  if (forwHost) return `${forwProto}://${forwHost}`;
+  // Fallback — works fine in local dev where there is no proxy
+  return new URL(request.url).origin;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const teamId = searchParams.get("id");
-  if (!teamId) return NextResponse.redirect(new URL("/", request.url));
+
+  const origin = getPublicOrigin(request);
+
+  if (!teamId) {
+    return NextResponse.redirect(`${origin}/`);
+  }
 
   try {
     const res = await fetch(`${BASE}/teams/${teamId}`, {
@@ -35,9 +55,9 @@ export async function GET(request: Request) {
       path: "/",
     });
 
-    // Redirect to /?team={id} so the URL stays bookmarkable
-    return NextResponse.redirect(new URL(`/?team=${teamId}`, request.url));
+    // Redirect to /?team={id} on the correct public domain
+    return NextResponse.redirect(`${origin}/?team=${teamId}`);
   } catch {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(`${origin}/`);
   }
 }

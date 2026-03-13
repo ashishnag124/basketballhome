@@ -66,8 +66,11 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
     setLoadingTeams(false);
   }
 
-  function handleTeamSelect(teamId: string) {
+  async function handleTeamSelect(teamId: string) {
     if (!teamId) return;
+    // Pre-set cookie via API call first so the homepage doesn't trigger another
+    // redirect to /api/set-team (which can end up on localhost in proxied deploys).
+    try { await fetch(`/api/set-team?id=${teamId}`); } catch { /* ignore */ }
     window.location.href = `/?team=${teamId}`;
   }
 
