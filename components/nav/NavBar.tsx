@@ -11,15 +11,18 @@ interface NavItem {
   icon: string;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+  shortName: string;
+  logo: string;
+}
+
 interface ConferenceOption {
   id: string;
   name: string;
   shortName: string;
-}
-
-interface TeamOption {
-  id: string;
-  name: string;
+  teams: TeamOption[];
 }
 
 const navItems: NavItem[] = [
@@ -37,10 +40,10 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
   const [scrolled, setScrolled] = useState(false);
 
   const [conferences, setConferences] = useState<ConferenceOption[]>([]);
+  const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
   const [selectedConf, setSelectedConf] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [loadingConf, setLoadingConf] = useState(true);
-  const [loadingTeams, setLoadingTeams] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -48,22 +51,29 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Single fetch — conferences + teams all come back together from the groups endpoint
   useEffect(() => {
     fetch("/api/teams")
       .then((r) => r.json())
-      .then((d) => setConferences(d.conferences || []))
+      .then((d) => {
+        const confs: ConferenceOption[] = d.conferences || [];
+        setConferences(confs);
+        // Flatten and sort all teams for the default "all teams" view
+        const flat = confs.flatMap((c) => c.teams).sort((a, b) => a.name.localeCompare(b.name));
+        setAllTeams(flat);
+        setTeams(flat);
+      })
       .finally(() => setLoadingConf(false));
   }, []);
 
-  async function handleConferenceChange(confId: string) {
+  function handleConferenceChange(confId: string) {
     setSelectedConf(confId);
-    setTeams([]);
-    if (!confId) return;
-    setLoadingTeams(true);
-    const res = await fetch(`/api/teams?conference=${confId}`);
-    const data = await res.json();
-    setTeams(data.teams || []);
-    setLoadingTeams(false);
+    if (!confId) {
+      setTeams(allTeams);
+    } else {
+      const conf = conferences.find((c) => c.id === confId);
+      setTeams(conf ? [...conf.teams].sort((a, b) => a.name.localeCompare(b.name)) : []);
+    }
   }
 
   function handleTeamSelect(teamId: string) {
@@ -108,11 +118,11 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
           <select
             value=""
             onChange={(e) => handleTeamSelect(e.target.value)}
-            disabled={!selectedConf || loadingTeams}
+            disabled={loadingConf}
             className={`${selectClass} max-w-[130px]`}
           >
             <option value="" className="bg-[var(--color-primary)] text-white">
-              {loadingTeams ? "Loading…" : "Team"}
+              {loadingConf ? "Loading…" : "Team"}
             </option>
             {teams.map((t) => (
               <option key={t.id} value={t.id} className="bg-[var(--color-primary)] text-white">
@@ -215,11 +225,11 @@ export default function NavBar({ isLive = false, teamConfig }: { isLive?: boolea
                 handleTeamSelect(e.target.value);
                 setMenuOpen(false);
               }}
-              disabled={!selectedConf || loadingTeams}
+              disabled={loadingConf}
               className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 border border-white/20 focus:outline-none disabled:opacity-50"
             >
               <option value="" className="bg-[var(--color-secondary)] text-white">
-                {loadingTeams ? "Loading…" : "Select team…"}
+                {loadingConf ? "Loading…" : "Select team…"}
               </option>
               {teams.map((t) => (
                 <option key={t.id} value={t.id} className="bg-[var(--color-secondary)] text-white">
